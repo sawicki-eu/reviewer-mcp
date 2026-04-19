@@ -1,7 +1,7 @@
 [project]
-name = "codex-reviewer-mcp"
+name = "reviewer-mcp"
 version = "0.1.0"
-description = "MCP server that invokes a second LLM (GitHub Models API) to challenge/verify the primary coding agent's plans and diffs"
+description = "MCP server package that invokes GitHub Models reviewers to challenge the primary coding agent's plans and diffs"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 classifiers = [
@@ -14,7 +14,7 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["codex_reviewer_mcp*"]
+include = ["reviewer_mcp*"]
 
 [tool.ruff]
 line-length = 99

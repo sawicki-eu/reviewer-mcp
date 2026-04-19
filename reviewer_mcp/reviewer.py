@@ -1,9 +1,8 @@
-"""Reviewer: calls GitHub Models API with the adversarial-review prompt.
+"""Reviewer: calls GitHub Models API with the adversarial-review prompts.
 
-We use ``openai/o3`` by default — a reasoning-oriented model that is a different
-family than the primary agent (Claude). The reviewer is strictly read-only; it
-never touches the filesystem. The MCP tool packages the inputs, we send them
-verbatim to the model, and return the structured JSON response.
+The reviewer is strictly read-only; it never touches the filesystem. The MCP
+tool packages the inputs, we send them verbatim to the selected GitHub Models
+profile, and return the structured JSON response.
 """
 
 from __future__ import annotations
@@ -15,15 +14,16 @@ from typing import Any
 
 import httpx
 
-from codex_reviewer_mcp.auth import AuthError, get_token
+from reviewer_mcp.auth import AuthError, get_token
+from reviewer_mcp.profiles import (
+    ReviewerProfile,
+    get_default_max_tokens,
+    get_default_model,
+    get_profile,
+)
 
 GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
-DEFAULT_MODEL = os.environ.get("CODEX_REVIEWER_MODEL", "openai/o3")
-DEFAULT_TIMEOUT = float(os.environ.get("CODEX_REVIEWER_TIMEOUT", "120"))
-# o-series models consume output budget as reasoning tokens; need generous limit.
-DEFAULT_MAX_COMPLETION_TOKENS = int(
-    os.environ.get("CODEX_REVIEWER_MAX_COMPLETION_TOKENS", "8000")
-)
+DEFAULT_TIMEOUT = float(os.environ.get("REVIEWER_TIMEOUT", "120"))
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 
@@ -48,21 +48,73 @@ def _build_user_message(payload: dict[str, Any]) -> str:
     return "\n\n".join(parts)
 
 
-def _call_model(system_prompt: str, user_message: str, model: str) -> str:
+def _build_request_body(
+    *,
+    system_prompt: str,
+    user_message: str,
+    model: str,
+    profile: ReviewerProfile,
+    token_budget: int | None = None,
+) -> dict[str, Any]:
+    body: dict[str, Any] = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_message},
+        ],
+        profile.token_parameter: token_budget or get_default_max_tokens(profile),
+    }
+    return body
+
+
+def _extract_message_content(data: dict[str, Any]) -> str:
+    try:
+        message = data["choices"][0]["message"]
+    except (KeyError, IndexError) as exc:
+        raise RuntimeError(f"Unexpected response shape: {data}") from exc
+
+    content = message.get("content") or ""
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+        content = "\n".join(parts)
+
+    if isinstance(content, str) and content.strip():
+        return content
+
+    reasoning = message.get("reasoning_content")
+    if isinstance(reasoning, str) and reasoning.strip():
+        raise RuntimeError(
+            "Model returned empty assistant content and only reasoning_content. "
+            "Choose a different reviewer profile or increase the token budget."
+        )
+
+    raise RuntimeError(f"Model returned empty assistant content: {data}")
+
+
+def _call_model(
+    system_prompt: str,
+    user_message: str,
+    *,
+    model: str,
+    profile: ReviewerProfile,
+) -> str:
     token = get_token()
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json",
     }
-    body = {
-        "model": model,
-        "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_message},
-        ],
-        "max_completion_tokens": DEFAULT_MAX_COMPLETION_TOKENS,
-    }
+    body = _build_request_body(
+        system_prompt=system_prompt,
+        user_message=user_message,
+        model=model,
+        profile=profile,
+    )
     with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
         response = client.post(GITHUB_MODELS_URL, headers=headers, json=body)
     if response.status_code == 429:
@@ -76,10 +128,7 @@ def _call_model(system_prompt: str, user_message: str, model: str) -> str:
             f"GitHub Models API returned {response.status_code}: {response.text[:500]}"
         )
     data = response.json()
-    try:
-        return data["choices"][0]["message"]["content"] or ""
-    except (KeyError, IndexError) as exc:
-        raise RuntimeError(f"Unexpected response shape: {data}") from exc
+    return _extract_message_content(data)
 
 
 def _parse_verdict(content: str) -> dict[str, Any]:
@@ -110,7 +159,9 @@ def review_plan(
     context: str | None = None,
     project_agents_md: str | None = None,
     model: str | None = None,
+    profile: ReviewerProfile | None = None,
 ) -> dict[str, Any]:
+    active_profile = profile or get_profile()
     system_prompt = _load_prompt("plan_review.md")
     user_message = _build_user_message(
         {
@@ -120,7 +171,12 @@ def review_plan(
             "project_agents_md": project_agents_md,
         }
     )
-    content = _call_model(system_prompt, user_message, model or DEFAULT_MODEL)
+    content = _call_model(
+        system_prompt,
+        user_message,
+        model=model or get_default_model(active_profile),
+        profile=active_profile,
+    )
     return _parse_verdict(content)
 
 
@@ -130,7 +186,9 @@ def review_diff(
     context: str | None = None,
     project_agents_md: str | None = None,
     model: str | None = None,
+    profile: ReviewerProfile | None = None,
 ) -> dict[str, Any]:
+    active_profile = profile or get_profile()
     system_prompt = _load_prompt("diff_review.md")
     user_message = _build_user_message(
         {
@@ -140,12 +198,18 @@ def review_diff(
             "project_agents_md": project_agents_md,
         }
     )
-    content = _call_model(system_prompt, user_message, model or DEFAULT_MODEL)
+    content = _call_model(
+        system_prompt,
+        user_message,
+        model=model or get_default_model(active_profile),
+        profile=active_profile,
+    )
     return _parse_verdict(content)
 
 
-def self_check() -> int:
+def self_check(profile: ReviewerProfile | None = None) -> int:
     """Verify auth + model reachability. Returns process exit code."""
+    active_profile = profile or get_profile()
     try:
         token = get_token()
     except AuthError as exc:
@@ -154,14 +218,13 @@ def self_check() -> int:
     print(f"[auth] ok, token length {len(token)}", flush=True)
 
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    body = {
-        "model": DEFAULT_MODEL,
-        "messages": [
-            {"role": "system", "content": "Reply with exactly: PONG"},
-            {"role": "user", "content": "ping"},
-        ],
-        "max_completion_tokens": 1000,
-    }
+    body = _build_request_body(
+        system_prompt="Reply with exactly: PONG",
+        user_message="ping",
+        model=get_default_model(active_profile),
+        profile=active_profile,
+        token_budget=128,
+    )
     try:
         with httpx.Client(timeout=30) as client:
             response = client.post(GITHUB_MODELS_URL, headers=headers, json=body)
@@ -172,7 +235,11 @@ def self_check() -> int:
         print(f"[api] HTTP {response.status_code}: {response.text[:300]}", flush=True)
         return 4
     data = response.json()
-    content = data.get("choices", [{}])[0].get("message", {}).get("content", "")
+    try:
+        content = _extract_message_content(data)
+    except RuntimeError as exc:
+        print(f"[api] invalid content: {exc}", flush=True)
+        return 5
     usage = data.get("usage", {})
     print(f"[api] ok, model={data.get('model')}, usage={usage}", flush=True)
     print(f"[api] content={content!r}", flush=True)

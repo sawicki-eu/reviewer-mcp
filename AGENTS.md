@@ -25,7 +25,7 @@ Register once at user scope so it is available in every project:
 
 ```bash
 opencode mcp add --scope user --transport stdio codex-reviewer \
-  -- /home/pawel/Projects/codex-reviewer-mcp/.venv/bin/python -m codex_reviewer_mcp
+  -- $HOME/Projects/codex-reviewer-mcp/.venv/bin/python -m codex_reviewer_mcp
 ```
 
 (Exact command depends on your MCP client — see Integration below.)

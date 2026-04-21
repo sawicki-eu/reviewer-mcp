@@ -19,6 +19,12 @@ python3 -m venv .venv
 
 # Run server manually (Ctrl-C to stop; normally launched by OpenCode):
 .venv/bin/python -m reviewer_mcp --profile codex
+
+# Mirror local OpenCode sessions into brain/logs near-real-time:
+.venv/bin/python -m reviewer_mcp mirror-opencode --watch --brain-root "$HOME/Projects/brain"
+
+# Summarize tracked telemetry and transcript bundles:
+.venv/bin/python -m reviewer_mcp report --brain-root "$HOME/Projects/brain" --format markdown
 ```
 
 ## MCP registration
@@ -60,6 +66,37 @@ Call **before** executing a non-trivial plan. Returns JSON:
 ### `review_diff(intent, diff, context?, project_agents_md?, model?)`
 
 Call **after** making changes but **before** committing. Returns JSON with `bugs` (line-level) and `missing_tests` in addition to the same fields as `review_plan`.
+
+## Measurement and logs
+
+`reviewer-mcp` now has two local-only measurement layers:
+
+1. **Reviewer raw telemetry**
+   - every `review_plan` / `review_diff` call writes one append-only JSON record under `brain/logs/YYYY-MM-DD/reviewer-raw.jsonl`
+   - records include the rendered prompt payload, system prompt, request hash, raw provider response, parsed verdict, usage, latency, and error/429 details
+   - GitHub auth headers and tokens are never logged
+
+2. **OpenCode transcript mirroring**
+   - `mirror-opencode --watch` polls the local OpenCode SQLite DB and mirrors updated root sessions into `brain/logs/YYYY-MM-DD/ses_<root-session-id>/`
+   - raw `opencode export` snapshots are preserved under `snapshots/`
+   - append-only `opencode-events.jsonl` stores message metadata and part payloads
+   - `reviewer-events.jsonl` stores matched reviewer raw telemetry for that session bundle
+
+Tracked bundle layout:
+
+```text
+brain/logs/
+  YYYY-MM-DD/
+    reviewer-raw.jsonl
+    ses_<root-session-id>/
+      manifest.json
+      index.json
+      opencode-events.jsonl
+      reviewer-events.jsonl
+      snapshots/
+```
+
+These logs are intentionally verbatim and may contain secrets from prompts, tool I/O, or model responses. They are meant for a private workspace repo only.
 
 ## When to invoke
 
@@ -128,10 +165,16 @@ reviewer-mcp/
 ├── .venv/                           (gitignored)
 └── reviewer_mcp/
     ├── __init__.py
-    ├── __main__.py                  # CLI entry: --check or run server
+    ├── __main__.py                  # CLI entry: server, mirror-opencode, report
+    ├── fingerprint.py               # Stable hashing for telemetry / mirror correlation
+    ├── paths.py                     # brain/logs and local state path resolution
     ├── profiles.py                  # Reviewer profile registry + defaults
     ├── server.py                    # FastMCP factory + tool registrations
-    ├── reviewer.py                  # Shared GitHub Models client logic
+    ├── reviewer.py                  # GitHub Models client + raw reviewer telemetry
+    ├── telemetry.py                 # Append-only JSONL helpers
+    ├── opencode.py                  # Local OpenCode DB/export integration
+    ├── mirror.py                    # Near-real-time transcript mirroring
+    ├── report.py                    # Metrics reporting over tracked logs
     ├── auth.py                      # gh CLI token provider
     └── prompts/
         ├── plan_review.md
@@ -153,6 +196,8 @@ reviewer-mcp/
 | `REVIEWER_CODEX_MAX_TOKENS` | `8000` | Override the codex profile token budget |
 | `REVIEWER_MISTRAL_MAX_TOKENS` | `4000` | Override the mistral profile token budget |
 | `REVIEWER_LLAMA_MAX_TOKENS` | `4000` | Override the llama profile token budget |
+| `REVIEWER_BRAIN_ROOT` | auto-detect | Override the workspace `brain/` directory |
+| `REVIEWER_STATE_DIR` | `~/.local/state/reviewer-mcp` | Local cursor/dedupe state for mirroring |
 
 ## Tradeoffs
 
@@ -161,3 +206,4 @@ reviewer-mcp/
 - **Provider quirks**: GitHub Models does not accept the same token parameter for every model family, so new profiles must specify the correct request shape.
 - **Recursion**: reviewer does not itself have access to MCP tools, so no infinite loop risk.
 - **No automatic file reading**: callers must pass content inline. Intentional — makes the review deterministic and keeps secrets out of the API call by default.
+- **Verbatim local logs**: raw transcript and reviewer artifacts are preserved for later analysis, so the tracked `brain/logs/` history will grow over time.

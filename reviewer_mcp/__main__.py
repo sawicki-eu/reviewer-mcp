@@ -5,6 +5,8 @@ Usage:
     python -m reviewer_mcp                      # Start MCP server over STDIO
     python -m reviewer_mcp --profile mistral    # Start another reviewer
     python -m reviewer_mcp --check              # Verify API access and exit
+    python -m reviewer_mcp mirror-opencode --watch
+    python -m reviewer_mcp report --format markdown
 """
 
 from __future__ import annotations
@@ -15,7 +17,7 @@ import sys
 from reviewer_mcp.profiles import get_profile
 
 
-def main() -> None:
+def _legacy_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="reviewer-mcp — adversarial review MCP server",
     )
@@ -29,7 +31,61 @@ def main() -> None:
         default=None,
         help="Reviewer profile to run: codex, mistral, llama",
     )
-    args = parser.parse_args()
+    return parser
+
+
+def _mirror_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Mirror local OpenCode sessions into brain/logs",
+    )
+    parser.add_argument("--brain-root", default=None, help="Path to the workspace brain directory")
+    parser.add_argument("--db-path", default=None, help="Override OpenCode SQLite DB path")
+    parser.add_argument("--state-dir", default=None, help="Override local reviewer state dir")
+    parser.add_argument("--poll-interval", type=float, default=2.0)
+    parser.add_argument("--idle-seconds", type=int, default=60)
+    parser.add_argument("--watch", action="store_true", help="Keep mirroring updated sessions")
+    parser.add_argument("--backfill", action="store_true", help="Mirror all known sessions once")
+    parser.add_argument("--once", action="store_true", help="Mirror a single bundle once")
+    parser.add_argument("--session", default=None, help="Session ID for --once mode")
+    return parser
+
+
+def _report_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Report reviewer telemetry and mirrored transcript metrics",
+    )
+    parser.add_argument("--brain-root", default=None, help="Path to the workspace brain directory")
+    parser.add_argument(
+        "--format",
+        default="markdown",
+        choices=("json", "markdown", "tsv"),
+        help="Output format",
+    )
+    parser.add_argument("--since", default=None, help="Filter logs from YYYY-MM-DD onward")
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    args_list = list(sys.argv[1:] if argv is None else argv)
+
+    if args_list and args_list[0] == "mirror-opencode":
+        from reviewer_mcp.mirror import run_cli as run_mirror_cli
+
+        parser = _mirror_parser()
+        args = parser.parse_args(args_list[1:])
+        run_mirror_cli(args)
+        return
+
+    if args_list and args_list[0] == "report":
+        from reviewer_mcp.report import run_cli as run_report_cli
+
+        parser = _report_parser()
+        args = parser.parse_args(args_list[1:])
+        run_report_cli(args)
+        return
+
+    parser = _legacy_parser()
+    args = parser.parse_args(args_list)
     profile = get_profile(args.profile)
 
     if args.check:

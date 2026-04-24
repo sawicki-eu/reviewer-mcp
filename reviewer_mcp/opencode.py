@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import subprocess
 from dataclasses import dataclass
@@ -20,17 +21,34 @@ class SessionRow:
     time_updated: int
 
 
+def default_data_dir() -> Path:
+    raw = os.environ.get("XDG_DATA_HOME")
+    if raw:
+        return Path(raw).expanduser() / "opencode"
+    return Path.home() / ".local" / "share" / "opencode"
+
+
+def default_db_path() -> Path:
+    return default_data_dir() / "opencode.db"
+
+
 def resolve_db_path(explicit: str | None = None) -> Path:
     if explicit:
         return Path(explicit).expanduser().resolve()
-    result = subprocess.run(
-        ["opencode", "db", "path"],
-        check=True,
-        capture_output=True,
-        text=True,
-        timeout=10,
-    )
-    return Path(result.stdout.strip()).expanduser().resolve()
+    try:
+        result = subprocess.run(
+            ["opencode", "db", "path"],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+        candidate = result.stdout.strip()
+        if candidate:
+            return Path(candidate).expanduser().resolve()
+    except (FileNotFoundError, subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        pass
+    return default_db_path().expanduser().resolve()
 
 
 def _connect(db_path: Path) -> sqlite3.Connection:

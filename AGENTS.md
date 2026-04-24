@@ -23,6 +23,9 @@ python3 -m venv .venv
 # Mirror local OpenCode sessions into brain/logs near-real-time:
 .venv/bin/python -m reviewer_mcp mirror-opencode --watch --brain-root "$HOME/Projects/brain"
 
+# Install native OpenCode auto-start for the mirror watcher:
+.venv/bin/python -m reviewer_mcp install-opencode-mirror-autostart --brain-root "$HOME/Projects/brain"
+
 # Summarize tracked telemetry and transcript bundles:
 .venv/bin/python -m reviewer_mcp report --brain-root "$HOME/Projects/brain" --format markdown
 ```
@@ -77,10 +80,12 @@ Call **after** making changes but **before** committing. Returns JSON with `bugs
    - GitHub auth headers and tokens are never logged
 
 2. **OpenCode transcript mirroring**
-   - `mirror-opencode --watch` polls the local OpenCode SQLite DB and mirrors updated root sessions into `brain/logs/YYYY-MM-DD/ses_<root-session-id>/`
-   - raw `opencode export` snapshots are preserved under `snapshots/`
-   - append-only `opencode-events.jsonl` stores message metadata and part payloads
-   - `reviewer-events.jsonl` stores matched reviewer raw telemetry for that session bundle
+    - `mirror-opencode --watch` polls the local OpenCode SQLite DB and mirrors updated root sessions into `brain/logs/YYYY-MM-DD/ses_<root-session-id>/`
+    - `install-opencode-mirror-autostart` installs a global OpenCode plugin that triggers `ensure-opencode-mirror` on OpenCode startup for matching workspaces
+    - startup prefers a workspace-specific user `systemd` service and falls back to a detached watcher process when `systemd --user` is unavailable
+    - raw `opencode export` snapshots are preserved under `snapshots/`
+    - append-only `opencode-events.jsonl` stores message metadata and part payloads
+    - `reviewer-events.jsonl` stores matched reviewer raw telemetry for that session bundle
 
 Tracked bundle layout:
 
@@ -161,11 +166,15 @@ Environment overrides:
 reviewer-mcp/
 ├── AGENTS.md
 ├── README.md
+├── opencode/
+│   └── plugins/
+│       └── reviewer-mcp-autostart.js
 ├── pyproject.toml
 ├── .venv/                           (gitignored)
 └── reviewer_mcp/
     ├── __init__.py
-    ├── __main__.py                  # CLI entry: server, mirror-opencode, report
+    ├── __main__.py                  # CLI entry: server, mirror-opencode, report, autostart
+    ├── autostart.py                 # OpenCode plugin + systemd/detached watcher orchestration
     ├── fingerprint.py               # Stable hashing for telemetry / mirror correlation
     ├── paths.py                     # brain/logs and local state path resolution
     ├── profiles.py                  # Reviewer profile registry + defaults
@@ -206,4 +215,6 @@ reviewer-mcp/
 - **Provider quirks**: GitHub Models does not accept the same token parameter for every model family, so new profiles must specify the correct request shape.
 - **Recursion**: reviewer does not itself have access to MCP tools, so no infinite loop risk.
 - **No automatic file reading**: callers must pass content inline. Intentional — makes the review deterministic and keeps secrets out of the API call by default.
+- **Auto-start scope**: the global plugin is shared across workspaces, but it only starts the watcher for workspaces listed in `~/.config/opencode/reviewer-mcp-autostart.json`.
+- **Background process fallback**: on systems without user `systemd`, a detached watcher is started instead, so cleanup and journaling are less uniform than the `systemd` path.
 - **Verbatim local logs**: raw transcript and reviewer artifacts are preserved for later analysis, so the tracked `brain/logs/` history will grow over time.

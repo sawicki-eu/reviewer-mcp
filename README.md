@@ -30,12 +30,17 @@ Example commands:
 # Near-real-time mirroring loop
 .venv/bin/python -m reviewer_mcp mirror-opencode --watch --brain-root "$HOME/Projects/brain"
 
+# Install OpenCode auto-start for this workspace
+.venv/bin/python -m reviewer_mcp install-opencode-mirror-autostart --brain-root "$HOME/Projects/brain"
+
 # One-shot sync / backfill
 .venv/bin/python -m reviewer_mcp mirror-opencode --backfill --brain-root "$HOME/Projects/brain"
 
 # Basic metrics report
 .venv/bin/python -m reviewer_mcp report --brain-root "$HOME/Projects/brain" --format markdown
 ```
+
+`install-opencode-mirror-autostart` installs a global OpenCode plugin symlink plus a workspace registry under `~/.config/opencode/`, writes a user `systemd` service unit under `~/.config/systemd/user/`, and starts the watcher. On platforms where `systemd --user` is unavailable, it falls back to a detached background process with a workspace-specific PID lock and log file under `REVIEWER_STATE_DIR`.
 
 See [AGENTS.md](AGENTS.md) for setup, usage, and design rationale.
 

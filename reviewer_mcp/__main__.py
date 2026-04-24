@@ -65,6 +65,17 @@ def _report_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _autostart_parser(description: str) -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description=description)
+    parser.add_argument("--brain-root", default=None, help="Path to the workspace brain directory")
+    parser.add_argument("--db-path", default=None, help="Override OpenCode SQLite DB path")
+    parser.add_argument("--state-dir", default=None, help="Override local reviewer state dir")
+    parser.add_argument("--python", dest="python_executable", default=None, help="Python executable")
+    parser.add_argument("--user-config-dir", default=None, help="Override XDG config directory")
+    parser.add_argument("--json", action="store_true", help="Print machine-readable output")
+    return parser
+
+
 def main(argv: list[str] | None = None) -> None:
     args_list = list(sys.argv[1:] if argv is None else argv)
 
@@ -82,6 +93,27 @@ def main(argv: list[str] | None = None) -> None:
         parser = _report_parser()
         args = parser.parse_args(args_list[1:])
         run_report_cli(args)
+        return
+
+    if args_list and args_list[0] == "install-opencode-mirror-autostart":
+        from reviewer_mcp.autostart import run_install_cli
+
+        parser = _autostart_parser("Install OpenCode mirror auto-start artifacts")
+        parser.add_argument(
+            "--no-start",
+            action="store_true",
+            help="Install/update artifacts without starting the watcher",
+        )
+        args = parser.parse_args(args_list[1:])
+        run_install_cli(args)
+        return
+
+    if args_list and args_list[0] == "ensure-opencode-mirror":
+        from reviewer_mcp.autostart import run_ensure_cli
+
+        parser = _autostart_parser("Ensure the OpenCode mirror watcher is running")
+        args = parser.parse_args(args_list[1:])
+        run_ensure_cli(args)
         return
 
     parser = _legacy_parser()

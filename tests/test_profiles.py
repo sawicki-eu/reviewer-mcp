@@ -20,6 +20,14 @@ class ProfilesTest(unittest.TestCase):
         self.assertEqual(profile.key, "llama")
         self.assertEqual(profile.default_model, "meta/llama-4-scout-17b-16e-instruct")
 
+    def test_kimi_profile_uses_fireworks_provider(self) -> None:
+        profile = get_profile("kimi")
+        self.assertEqual(profile.server_name, "kimi-reviewer")
+        self.assertEqual(profile.provider_name, "Fireworks AI API")
+        self.assertEqual(profile.api_url, "https://api.fireworks.ai/inference/v1/chat/completions")
+        self.assertEqual(profile.auth_mode, "fireworks")
+        self.assertEqual(profile.default_model, "accounts/fireworks/models/kimi-k2p6")
+
     def test_unknown_profile_raises_clear_error(self) -> None:
         with self.assertRaisesRegex(ValueError, "Unknown reviewer profile"):
             get_profile("nope")
@@ -49,6 +57,19 @@ class ProfilesTest(unittest.TestCase):
         ):
             tokens = get_default_max_tokens(profile)
         self.assertEqual(tokens, 4321)
+
+    def test_kimi_specific_model_override_beats_generic(self) -> None:
+        profile = get_profile("kimi")
+        with mock.patch.dict(
+            os.environ,
+            {
+                "REVIEWER_MODEL": "generic/model",
+                "REVIEWER_KIMI_MODEL": "accounts/fireworks/models/custom-kimi",
+            },
+            clear=True,
+        ):
+            model = get_default_model(profile)
+        self.assertEqual(model, "accounts/fireworks/models/custom-kimi")
 
 
 if __name__ == "__main__":

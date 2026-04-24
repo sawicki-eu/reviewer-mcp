@@ -11,11 +11,18 @@ class ServerFactoryTest(unittest.TestCase):
         mcp = create_mcp(get_profile("codex"))
         self.assertEqual(mcp.name, "codex-reviewer")
         self.assertIn("OpenAI", mcp.instructions)
+        self.assertIn("GitHub Models API", mcp.instructions)
 
     def test_llama_server_metadata(self) -> None:
         mcp = create_mcp(get_profile("llama"))
         self.assertEqual(mcp.name, "llama-reviewer")
         self.assertIn("Meta Llama", mcp.instructions)
+
+    def test_kimi_server_metadata(self) -> None:
+        mcp = create_mcp(get_profile("kimi"))
+        self.assertEqual(mcp.name, "kimi-reviewer")
+        self.assertIn("Moonshot Kimi", mcp.instructions)
+        self.assertIn("Fireworks AI API", mcp.instructions)
 
 
 if __name__ == "__main__":

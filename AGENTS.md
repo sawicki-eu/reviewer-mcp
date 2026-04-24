@@ -2,9 +2,9 @@
 
 @../AGENTS.md
 
-MCP server package that exposes multiple LLM-backed **adversarial reviewers** of the primary coding agent's plans and diffs. Aims to reduce single-model blind spots by letting the same prompts and tool schema run against different model families available on the GitHub Models API.
+MCP server package that exposes multiple LLM-backed **adversarial reviewers** of the primary coding agent's plans and diffs. Aims to reduce single-model blind spots by letting the same prompts and tool schema run against different model families across the GitHub Models API and Fireworks AI API.
 
-Runs as a local subprocess via STDIO transport — no ports, no cloud intermediary beyond the Models API itself.
+Runs as a local subprocess via STDIO transport — no ports, no cloud intermediary beyond the provider APIs themselves.
 
 ## Quick start
 
@@ -12,10 +12,11 @@ Runs as a local subprocess via STDIO transport — no ports, no cloud intermedia
 python3 -m venv .venv
 .venv/bin/pip install -e .
 
-# Verify API access (uses `gh auth token`):
+# Verify API access:
 .venv/bin/python -m reviewer_mcp --check --profile codex
 .venv/bin/python -m reviewer_mcp --check --profile mistral
 .venv/bin/python -m reviewer_mcp --check --profile llama
+.venv/bin/python -m reviewer_mcp --check --profile kimi
 
 # Run server manually (Ctrl-C to stop; normally launched by OpenCode):
 .venv/bin/python -m reviewer_mcp --profile codex
@@ -43,6 +44,9 @@ opencode mcp add --scope user --transport stdio mistral-reviewer \
 
 opencode mcp add --scope user --transport stdio llama-reviewer \
   -- $HOME/Projects/reviewer-mcp/.venv/bin/python -m reviewer_mcp --profile llama
+
+opencode mcp add --scope user --transport stdio kimi-reviewer \
+  -- $HOME/Projects/reviewer-mcp/.venv/bin/python -m reviewer_mcp --profile kimi
 ```
 
 (Exact command depends on your MCP client — see Integration below.)
@@ -122,7 +126,9 @@ Force review on demand: user says "review this" at any point.
 
 ## Auth
 
-Uses `gh auth token` to reuse the GitHub CLI's stored PAT. The token must carry `models:read` scope (fine-grained PAT) or appropriate classic-PAT scope. Override with the `GITHUB_TOKEN` env var (useful for tests / CI).
+GitHub-backed profiles reuse `gh auth token`. The token must carry `models:read` scope (fine-grained PAT) or appropriate classic-PAT scope. Override with `GITHUB_TOKEN` for tests or CI.
+
+`kimi` uses `FIREWORKS_API_KEY`, or reads a one-line API key file from `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`). Override the file path with `FIREWORKS_API_KEY_FILE`.
 
 ## Profiles
 
@@ -150,6 +156,14 @@ Default model: `meta/llama-4-scout-17b-16e-instruct`
 
 Best fit for very large diffs or plans where the huge context window matters. This profile also uses `max_tokens`.
 
+### `kimi`
+
+Server name: `kimi-reviewer`
+
+Default model: `accounts/fireworks/models/kimi-k2p6`
+
+Use when you want a Fireworks-backed reviewer built on Moonshot Kimi K2.6. This profile uses the generic `max_tokens` parameter on Fireworks' OpenAI-compatible chat endpoint.
+
 ## Model overrides
 
 Each profile has a built-in default model, but you can override it per call with the `model` parameter.
@@ -158,7 +172,7 @@ Environment overrides:
 
 - `REVIEWER_PROFILE` selects the default profile when `--profile` is omitted.
 - `REVIEWER_MODEL` overrides the default model for all profiles.
-- `REVIEWER_CODEX_MODEL`, `REVIEWER_MISTRAL_MODEL`, `REVIEWER_LLAMA_MODEL` override only one profile.
+- `REVIEWER_CODEX_MODEL`, `REVIEWER_MISTRAL_MODEL`, `REVIEWER_LLAMA_MODEL`, `REVIEWER_KIMI_MODEL` override only one profile.
 
 ## Project layout
 
@@ -179,12 +193,12 @@ reviewer-mcp/
     ├── paths.py                     # brain/logs and local state path resolution
     ├── profiles.py                  # Reviewer profile registry + defaults
     ├── server.py                    # FastMCP factory + tool registrations
-    ├── reviewer.py                  # GitHub Models client + raw reviewer telemetry
+    ├── reviewer.py                  # Provider API client + raw reviewer telemetry
     ├── telemetry.py                 # Append-only JSONL helpers
     ├── opencode.py                  # Local OpenCode DB/export integration
     ├── mirror.py                    # Near-real-time transcript mirroring
     ├── report.py                    # Metrics reporting over tracked logs
-    ├── auth.py                      # gh CLI token provider
+    ├── auth.py                      # provider-specific token helpers
     └── prompts/
         ├── plan_review.md
         └── diff_review.md
@@ -195,24 +209,28 @@ reviewer-mcp/
 | Var | Default | Purpose |
 |-----|---------|---------|
 | `GITHUB_TOKEN` | (unset) | Override token instead of calling `gh auth token` |
+| `FIREWORKS_API_KEY` | (unset) | Override the Fireworks API key instead of reading the key file |
+| `FIREWORKS_API_KEY_FILE` | `~/.config/reviewer-mcp/fireworks-api-key` | File containing the Fireworks API key for the `kimi` profile |
 | `REVIEWER_PROFILE` | `codex` | Default reviewer profile when `--profile` is omitted |
 | `REVIEWER_MODEL` | per profile | Override model ID for all profiles |
 | `REVIEWER_CODEX_MODEL` | `openai/o3` | Override the codex profile model |
 | `REVIEWER_MISTRAL_MODEL` | `mistral-ai/mistral-medium-2505` | Override the mistral profile model |
 | `REVIEWER_LLAMA_MODEL` | `meta/llama-4-scout-17b-16e-instruct` | Override the llama profile model |
+| `REVIEWER_KIMI_MODEL` | `accounts/fireworks/models/kimi-k2p6` | Override the Kimi profile model |
 | `REVIEWER_TIMEOUT` | `120` | HTTP timeout in seconds |
 | `REVIEWER_MAX_TOKENS` | per profile | Override output budget for all profiles |
 | `REVIEWER_CODEX_MAX_TOKENS` | `8000` | Override the codex profile token budget |
 | `REVIEWER_MISTRAL_MAX_TOKENS` | `4000` | Override the mistral profile token budget |
 | `REVIEWER_LLAMA_MAX_TOKENS` | `4000` | Override the llama profile token budget |
+| `REVIEWER_KIMI_MAX_TOKENS` | `4000` | Override the Kimi profile token budget |
 | `REVIEWER_BRAIN_ROOT` | auto-detect | Override the workspace `brain/` directory |
 | `REVIEWER_STATE_DIR` | `~/.local/state/reviewer-mcp` | Local cursor/dedupe state for mirroring |
 
 ## Tradeoffs
 
 - **Latency**: every review adds 10–60s depending on input size. Soft default skips trivial changes.
-- **Cost / limits**: GitHub Models has rate limits for Copilot subscribers; watch for 429s on heavy use, especially with the `codex` profile on `openai/o3`.
-- **Provider quirks**: GitHub Models does not accept the same token parameter for every model family, so new profiles must specify the correct request shape.
+- **Cost / limits**: provider limits differ. GitHub Models may 429 on heavier use, while Fireworks usage consumes your Fireworks account credits.
+- **Provider quirks**: model families and providers do not accept the same token parameter or auth source, so profiles must specify the correct request shape and credential source.
 - **Recursion**: reviewer does not itself have access to MCP tools, so no infinite loop risk.
 - **No automatic file reading**: callers must pass content inline. Intentional — makes the review deterministic and keeps secrets out of the API call by default.
 - **Auto-start scope**: the global plugin is shared across workspaces, but it only starts the watcher for workspaces listed in `~/.config/opencode/reviewer-mcp-autostart.json`.

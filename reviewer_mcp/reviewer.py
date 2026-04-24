@@ -1,4 +1,4 @@
-"""Reviewer: calls GitHub Models API with the adversarial-review prompts.
+"""Reviewer: calls provider APIs with the adversarial-review prompts.
 
 The reviewer is logically read-only from the caller's point of view: it never
 edits repo files, but it can emit append-only local telemetry under ``brain/``
@@ -25,7 +25,6 @@ from reviewer_mcp.profiles import (
     get_profile,
 )
 
-GITHUB_MODELS_URL = "https://models.github.ai/inference/chat/completions"
 DEFAULT_TIMEOUT = float(os.environ.get("REVIEWER_TIMEOUT", "120"))
 
 PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -130,8 +129,8 @@ def _extract_message_content(data: dict[str, Any]) -> str:
     raise RuntimeError(f"Model returned empty assistant content: {data}")
 
 
-def _call_model(request_body: dict[str, Any]) -> ModelCallResult:
-    token = get_token()
+def _call_model(request_body: dict[str, Any], profile: ReviewerProfile) -> ModelCallResult:
+    token = get_token(profile)
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -139,10 +138,10 @@ def _call_model(request_body: dict[str, Any]) -> ModelCallResult:
     }
     try:
         with httpx.Client(timeout=DEFAULT_TIMEOUT) as client:
-            response = client.post(GITHUB_MODELS_URL, headers=headers, json=request_body)
+            response = client.post(profile.api_url, headers=headers, json=request_body)
     except httpx.HTTPError as exc:
         raise ModelCallError(
-            f"GitHub Models API transport error: {exc}",
+            f"{profile.provider_name} transport error: {exc}",
             request_body=request_body,
         ) from exc
 
@@ -155,7 +154,7 @@ def _call_model(request_body: dict[str, Any]) -> ModelCallResult:
     if response.status_code == 429:
         retry_after = response.headers.get("retry-after")
         raise ModelCallError(
-            f"GitHub Models API rate-limited (HTTP 429). Retry-After: {retry_after or 'unknown'}s. "
+            f"{profile.provider_name} rate-limited (HTTP 429). Retry-After: {retry_after or 'unknown'}s. "
             "Consider spacing out calls, skipping trivial reviews, or upgrading tier.",
             request_body=request_body,
             http_status=response.status_code,
@@ -166,7 +165,7 @@ def _call_model(request_body: dict[str, Any]) -> ModelCallResult:
 
     if response.status_code != 200:
         raise ModelCallError(
-            f"GitHub Models API returned {response.status_code}: {response_text[:500]}",
+            f"{profile.provider_name} returned {response.status_code}: {response_text[:500]}",
             request_body=request_body,
             http_status=response.status_code,
             retry_after=response.headers.get("retry-after"),
@@ -176,7 +175,7 @@ def _call_model(request_body: dict[str, Any]) -> ModelCallResult:
 
     if response_json is None:
         raise ModelCallError(
-            "GitHub Models API returned HTTP 200 but not valid JSON.",
+            f"{profile.provider_name} returned HTTP 200 but not valid JSON.",
             request_body=request_body,
             http_status=response.status_code,
             retry_after=response.headers.get("retry-after"),
@@ -337,7 +336,7 @@ def _run_review(
     parse_success: bool | None = None
     error: Exception | None = None
     try:
-        result = _call_model(request_body)
+        result = _call_model(request_body, active_profile)
         parsed_verdict, parse_success = _parse_verdict_result(result.assistant_content)
         return parsed_verdict
     except Exception as exc:
@@ -410,7 +409,7 @@ def self_check(profile: ReviewerProfile | None = None) -> int:
 
     active_profile = profile or get_profile()
     try:
-        token = get_token()
+        token = get_token(active_profile)
     except AuthError as exc:
         print(f"[auth] {exc}", flush=True)
         return 2
@@ -424,7 +423,7 @@ def self_check(profile: ReviewerProfile | None = None) -> int:
         token_budget=128,
     )
     try:
-        result = _call_model(body)
+        result = _call_model(body, active_profile)
     except ModelCallError as exc:
         if exc.http_status is None:
             print(f"[api] transport error: {exc}", flush=True)

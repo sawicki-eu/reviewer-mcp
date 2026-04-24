@@ -1,4 +1,4 @@
-"""Reviewer profile definitions for GitHub Models-backed MCP servers."""
+"""Reviewer profile definitions for provider-backed MCP servers."""
 
 from __future__ import annotations
 
@@ -12,6 +12,9 @@ class ReviewerProfile:
 
     key: str
     server_name: str
+    provider_name: str
+    api_url: str
+    auth_mode: str
     default_model: str
     token_parameter: str
     default_max_tokens: int
@@ -22,6 +25,9 @@ PROFILES: dict[str, ReviewerProfile] = {
     "codex": ReviewerProfile(
         key="codex",
         server_name="codex-reviewer",
+        provider_name="GitHub Models API",
+        api_url="https://models.github.ai/inference/chat/completions",
+        auth_mode="github",
         default_model="openai/o3",
         token_parameter="max_completion_tokens",
         default_max_tokens=8000,
@@ -32,6 +38,9 @@ PROFILES: dict[str, ReviewerProfile] = {
     "mistral": ReviewerProfile(
         key="mistral",
         server_name="mistral-reviewer",
+        provider_name="GitHub Models API",
+        api_url="https://models.github.ai/inference/chat/completions",
+        auth_mode="github",
         default_model="mistral-ai/mistral-medium-2505",
         token_parameter="max_tokens",
         default_max_tokens=4000,
@@ -42,11 +51,27 @@ PROFILES: dict[str, ReviewerProfile] = {
     "llama": ReviewerProfile(
         key="llama",
         server_name="llama-reviewer",
+        provider_name="GitHub Models API",
+        api_url="https://models.github.ai/inference/chat/completions",
+        auth_mode="github",
         default_model="meta/llama-4-scout-17b-16e-instruct",
         token_parameter="max_tokens",
         default_max_tokens=4000,
         description=(
             "Meta Llama reviewer suited for large-context plans and diffs."
+        ),
+    ),
+    "kimi": ReviewerProfile(
+        key="kimi",
+        server_name="kimi-reviewer",
+        provider_name="Fireworks AI API",
+        api_url="https://api.fireworks.ai/inference/v1/chat/completions",
+        auth_mode="fireworks",
+        default_model="accounts/fireworks/models/kimi-k2p6",
+        token_parameter="max_tokens",
+        default_max_tokens=4000,
+        description=(
+            "Fireworks-backed Moonshot Kimi reviewer suited for coding-heavy plans and diffs."
         ),
     ),
 }

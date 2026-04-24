@@ -1,12 +1,13 @@
 # reviewer-mcp
 
-MCP server package that exposes multiple adversarial reviewers over the GitHub Models API.
+MCP server package that exposes multiple adversarial reviewers across the GitHub Models API and Fireworks AI API.
 
 Shared prompts and tool schemas are reused across multiple reviewer profiles:
 
 - `codex-reviewer` on `openai/o3`
 - `mistral-reviewer` on `mistral-ai/mistral-medium-2505`
 - `llama-reviewer` on `meta/llama-4-scout-17b-16e-instruct`
+- `kimi-reviewer` on `accounts/fireworks/models/kimi-k2p6`
 
 Each server exposes the same two tools:
 
@@ -14,6 +15,20 @@ Each server exposes the same two tools:
 - `review_diff`
 
 Pick the reviewer whose model family best complements the primary agent, or register several and use them selectively.
+
+Auth:
+
+- GitHub-backed profiles use `GITHUB_TOKEN` or `gh auth token`
+- `kimi-reviewer` uses `FIREWORKS_API_KEY`, or reads `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`)
+
+Example Fireworks key file setup:
+
+```bash
+mkdir -p "$HOME/.config/reviewer-mcp"
+chmod 700 "$HOME/.config/reviewer-mcp"
+printf '%s\n' '<YOUR_FIREWORKS_API_KEY>' > "$HOME/.config/reviewer-mcp/fireworks-api-key"
+chmod 600 "$HOME/.config/reviewer-mcp/fireworks-api-key"
+```
 
 ## Logging And Measurement
 

@@ -24,12 +24,12 @@ def _legacy_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--check",
         action="store_true",
-        help="Verify GitHub Models API access and exit",
+        help="Verify reviewer API access and exit",
     )
     parser.add_argument(
         "--profile",
         default=None,
-        help="Reviewer profile to run: codex, mistral, llama",
+        help="Reviewer profile to run: codex, mistral, llama, kimi",
     )
     return parser
 

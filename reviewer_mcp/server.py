@@ -14,7 +14,7 @@ def _instructions_for(profile: ReviewerProfile) -> str:
     return (
         "Adversarial reviewer. Call `review_plan` BEFORE executing a non-trivial plan "
         "and `review_diff` AFTER making changes but BEFORE committing. "
-        f"This server uses {profile.description} "
+        f"This server uses {profile.description} via {profile.provider_name}. "
         "It returns a structured JSON verdict with fields: verdict, summary, "
         "critical_issues/bugs, risks, missed_alternatives, convention_violations, "
         "questions_for_primary, confidence. Respect `challenge` and `reject` verdicts: "

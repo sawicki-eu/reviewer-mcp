@@ -1,7 +1,7 @@
 [project]
 name = "reviewer-mcp"
 version = "0.1.0"
-description = "MCP server package that invokes GitHub Models reviewers to challenge the primary coding agent's plans and diffs"
+description = "MCP server package that invokes adversarial reviewers across multiple LLM providers"
 requires-python = ">=3.10"
 license = { text = "AGPL-3.0-or-later" }
 classifiers = [

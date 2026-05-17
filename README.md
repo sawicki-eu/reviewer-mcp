@@ -17,6 +17,62 @@ Each server exposes the same two tools:
 
 Pick the reviewer whose model family best complements the primary agent, or register several and use them selectively.
 
+## Install
+
+Register one or more reviewer profiles as MCP servers at user scope so they are available in every project.
+
+### OpenCode
+
+```bash
+opencode mcp add --scope user --transport stdio codex-reviewer \
+  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile codex
+
+opencode mcp add --scope user --transport stdio mistral-reviewer \
+  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile mistral
+
+opencode mcp add --scope user --transport stdio llama-reviewer \
+  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile llama
+
+opencode mcp add --scope user --transport stdio kimi-reviewer \
+  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile kimi
+
+opencode mcp add --scope user --transport stdio deepseek-reviewer \
+  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile deepseek
+```
+
+### Claude Code
+
+Add entries to `~/.claude/settings.json` (create the file if it does not exist):
+
+```json
+{
+  "mcpServers": {
+    "codex-reviewer": {
+      "command": "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+      "args": ["-m", "reviewer_mcp", "--profile", "codex"]
+    },
+    "mistral-reviewer": {
+      "command": "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+      "args": ["-m", "reviewer_mcp", "--profile", "mistral"]
+    },
+    "llama-reviewer": {
+      "command": "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+      "args": ["-m", "reviewer_mcp", "--profile", "llama"]
+    },
+    "kimi-reviewer": {
+      "command": "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+      "args": ["-m", "reviewer_mcp", "--profile", "kimi"]
+    },
+    "deepseek-reviewer": {
+      "command": "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+      "args": ["-m", "reviewer_mcp", "--profile", "deepseek"]
+    }
+  }
+}
+```
+
+Adjust the Python path if you installed the virtual environment elsewhere.
+
 Auth:
 
 - GitHub-backed profiles use `GITHUB_TOKEN` or `gh auth token`

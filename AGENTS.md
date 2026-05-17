@@ -179,6 +179,40 @@ brain/logs/
 
 These logs are intentionally verbatim and may contain secrets from prompts, tool I/O, or model responses. They are meant for a private workspace repo only.
 
+## Brain-sync safety net
+
+A separate daemon (`brain-sync`) auto-commits `brain/` artifacts to git, complementing the OpenCode plugin-based auto-commit. It catches crashes, abrupt client closures, and other situations where the plugin cannot run.
+
+**Key invariant:** brain-sync **never pushes** — push remains the responsibility of the OpenCode plugin (on `session.idle` / `session.deleted`) or explicit user action.
+
+### Run manually
+
+```bash
+.venv/bin/python -m reviewer_mcp brain-sync --watch --brain-root "$HOME/Projects/brain"
+```
+
+The daemon:
+- Polls `git status` every 30 seconds
+- Starts a 60-second stability timer when uncommitted `brain/` changes are detected
+- Commits with message `brain: safety-net sync <ISO-timestamp>` when changes remain stable
+- Flushes any pending commit on SIGTERM (catches Ctrl-C, laptop sleep, client crashes)
+- Uses a PID lock file to prevent duplicate instances
+
+### Install as systemd user service
+
+```bash
+.venv/bin/python -m reviewer_mcp install-brain-sync-autostart --brain-root "$HOME/Projects/brain"
+```
+
+This writes a `systemd --user` unit file, reloads the daemon, and starts the service. On systems without `systemd --user`, run the daemon manually or via your init system of choice.
+
+### Uninstall
+
+```bash
+systemctl --user stop reviewer-mcp-brain-sync-<hash>.service
+# Or: remove the unit file from ~/.config/systemd/user/
+```
+
 ## When to invoke
 
 Soft default workflow:
@@ -277,6 +311,7 @@ reviewer-mcp/
     ├── telemetry.py                 # Append-only JSONL helpers
     ├── opencode.py                  # Local OpenCode DB/export integration
     ├── mirror.py                    # Near-real-time transcript mirroring
+    ├── brain_sync.py                # Safety-net daemon for auto-committing brain/
     ├── report.py                    # Metrics reporting over tracked logs
     ├── auth.py                      # provider-specific token helpers
     └── prompts/

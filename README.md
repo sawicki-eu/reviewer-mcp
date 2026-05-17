@@ -145,9 +145,25 @@ Example commands:
 
 # Basic metrics report
 .venv/bin/python -m reviewer_mcp report --brain-root "$HOME/Projects/brain" --format markdown
+
+# Auto-commit brain/ artifacts (safety net)
+.venv/bin/python -m reviewer_mcp brain-sync --watch --brain-root "$HOME/Projects/brain"
+
+# Install brain-sync as systemd user service
+.venv/bin/python -m reviewer_mcp install-brain-sync-autostart --brain-root "$HOME/Projects/brain"
 ```
 
 `install-opencode-mirror-autostart` installs a global OpenCode plugin symlink plus a workspace registry under `~/.config/opencode/`, writes a user `systemd` service unit under `~/.config/systemd/user/`, and starts the watcher. On platforms where `systemd --user` is unavailable, it falls back to a detached background process with a workspace-specific PID lock and log file under `REVIEWER_STATE_DIR`.
+
+### Brain-sync safety net
+
+The `brain-sync` daemon auto-commits `brain/` artifacts (logs, sessions, scripts, decisions) to git every time they remain stable for 60 seconds. It complements the OpenCode plugin-based auto-commit by catching crashes, abrupt client closures, and other edge cases where the plugin cannot run.
+
+- Polls `git status` every 30 seconds
+- Commits with message `brain: safety-net sync <ISO-timestamp>`
+- Flushes pending commits on SIGTERM
+- Uses PID lock files to prevent duplicate instances
+- **Never pushes** — push remains the OpenCode plugin's responsibility or explicit user action
 
 See [AGENTS.md](AGENTS.md) for setup, usage, and design rationale.
 

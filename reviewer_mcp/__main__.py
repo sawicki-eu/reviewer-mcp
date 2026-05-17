@@ -7,6 +7,8 @@ Usage:
     python -m reviewer_mcp --check              # Verify API access and exit
     python -m reviewer_mcp mirror-opencode --watch
     python -m reviewer_mcp report --format markdown
+    python -m reviewer_mcp brain-sync --watch --brain-root <path>
+    python -m reviewer_mcp install-brain-sync-autostart --brain-root <path>
 """
 
 from __future__ import annotations
@@ -65,6 +67,30 @@ def _report_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _brain_sync_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Brain-sync safety-net daemon")
+    parser.add_argument("--brain-root", default=None, help="Path to the workspace brain directory")
+    parser.add_argument(
+        "--poll-interval",
+        type=float,
+        default=30.0,
+        help="Polling interval in seconds (default: 30)",
+    )
+    parser.add_argument(
+        "--stability-seconds",
+        type=int,
+        default=60,
+        help="Stability period before committing in seconds (default: 60)",
+    )
+    parser.add_argument("--pid-file", default=None, help="Path to PID lock file")
+    parser.add_argument(
+        "--watch",
+        action="store_true",
+        help="Run the daemon continuously (default)",
+    )
+    return parser
+
+
 def _autostart_parser(description: str) -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=description)
     parser.add_argument("--brain-root", default=None, help="Path to the workspace brain directory")
@@ -114,6 +140,27 @@ def main(argv: list[str] | None = None) -> None:
         parser = _autostart_parser("Ensure the OpenCode mirror watcher is running")
         args = parser.parse_args(args_list[1:])
         run_ensure_cli(args)
+        return
+
+    if args_list and args_list[0] == "brain-sync":
+        from reviewer_mcp.brain_sync import run_cli as run_brain_sync_cli
+
+        parser = _brain_sync_parser()
+        args = parser.parse_args(args_list[1:])
+        run_brain_sync_cli(args)
+        return
+
+    if args_list and args_list[0] == "install-brain-sync-autostart":
+        from reviewer_mcp.autostart import run_install_brain_sync_cli
+
+        parser = _autostart_parser("Install brain-sync safety-net auto-start artifacts")
+        parser.add_argument(
+            "--no-start",
+            action="store_true",
+            help="Install/update artifacts without starting the daemon",
+        )
+        args = parser.parse_args(args_list[1:])
+        run_install_brain_sync_cli(args)
         return
 
     parser = _legacy_parser()

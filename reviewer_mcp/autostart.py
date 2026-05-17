@@ -430,3 +430,118 @@ def run_ensure_cli(args: argparse.Namespace) -> None:
         print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
         return
     print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))
+
+
+# ---- brain-sync safety net (separate from mirror autostart) ----
+
+
+def brain_sync_service_name(config: EnsureConfig) -> str:
+    return f"reviewer-mcp-brain-sync-{workspace_key(config)}.service"
+
+
+def brain_sync_service_exec_args(config: EnsureConfig) -> list[str]:
+    return [
+        str(config.python_executable),
+        "-m",
+        "reviewer_mcp",
+        "brain-sync",
+        "--watch",
+        "--brain-root",
+        str(config.brain_root),
+    ]
+
+
+def render_brain_sync_service(config: EnsureConfig) -> str:
+    exec_start = " ".join(json.dumps(arg) for arg in brain_sync_service_exec_args(config))
+    lines = [
+        "[Unit]",
+        "Description=Auto-commit brain/ safety net",
+        "After=default.target",
+        "",
+        "[Service]",
+        "Type=simple",
+        f"WorkingDirectory={json.dumps(str(config.project_root))}",
+        f"ExecStart={exec_start}",
+        "Restart=always",
+        "RestartSec=30",
+        "",
+        "[Install]",
+        "WantedBy=default.target",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def brain_sync_service_target_path(config: EnsureConfig) -> Path:
+    return config.systemd_user_dir / brain_sync_service_name(config)
+
+
+def install_brain_sync_service_file(config: EnsureConfig) -> Path:
+    target = brain_sync_service_target_path(config)
+    ensure_directory(target.parent)
+    rendered = render_brain_sync_service(config)
+    if not target.exists() or target.read_text(encoding="utf-8") != rendered:
+        target.write_text(rendered, encoding="utf-8")
+    return target
+
+
+def ensure_brain_sync_systemd_running(config: EnsureConfig) -> dict[str, object]:
+    unit_path = install_brain_sync_service_file(config)
+    _run(["systemctl", "--user", "daemon-reload"])
+    name = brain_sync_service_name(config)
+    start = _run(["systemctl", "--user", "start", name], check=False)
+    is_active = _run(["systemctl", "--user", "is-active", name], check=False)
+    return {
+        "mode": "systemd",
+        "service": name,
+        "service_path": str(unit_path),
+        "started": start.returncode == 0,
+        "active": is_active.returncode == 0,
+        "stderr": (start.stderr or is_active.stderr).strip() or None,
+    }
+
+
+def install_brain_sync_autostart(config: EnsureConfig) -> dict[str, object]:
+    service_path = install_brain_sync_service_file(config)
+    return {
+        "service_path": str(service_path),
+    }
+
+
+def uninstall_brain_sync_autostart(config: EnsureConfig) -> dict[str, object]:
+    name = brain_sync_service_name(config)
+    unit_path = brain_sync_service_target_path(config)
+    stopped = False
+    removed = False
+    if systemd_is_usable():
+        stop = _run(["systemctl", "--user", "stop", name], check=False)
+        stopped = stop.returncode == 0
+    if unit_path.exists():
+        try:
+            unit_path.unlink()
+            removed = True
+        except OSError:
+            pass
+    if systemd_is_usable():
+        _run(["systemctl", "--user", "daemon-reload"], check=False)
+    return {
+        "service": name,
+        "stopped": stopped,
+        "removed": removed,
+    }
+
+
+def run_install_brain_sync_cli(args: argparse.Namespace) -> None:
+    config = build_config(
+        brain_root=args.brain_root,
+        state_dir=args.state_dir,
+        python_executable=args.python_executable,
+        user_config_dir=args.user_config_dir,
+    )
+    payload: dict[str, object] = {"installed": install_brain_sync_autostart(config)}
+    if not args.no_start:
+        payload["ensure"] = ensure_brain_sync_systemd_running(config)
+    if args.json:
+        print(json.dumps(payload, ensure_ascii=True, sort_keys=True))
+        return
+    print(json.dumps(payload, ensure_ascii=True, indent=2, sort_keys=True))

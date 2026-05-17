@@ -23,22 +23,57 @@ Register one or more reviewer profiles as MCP servers at user scope so they are 
 
 ### OpenCode
 
-```bash
-opencode mcp add --scope user --transport stdio codex-reviewer \
-  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile codex
+Add entries to `~/.config/opencode/opencode.json` (or `opencode.jsonc`):
 
-opencode mcp add --scope user --transport stdio mistral-reviewer \
-  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile mistral
-
-opencode mcp add --scope user --transport stdio llama-reviewer \
-  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile llama
-
-opencode mcp add --scope user --transport stdio kimi-reviewer \
-  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile kimi
-
-opencode mcp add --scope user --transport stdio deepseek-reviewer \
-  -- "$HOME/Projects/reviewer-mcp/.venv/bin/python" -m reviewer_mcp --profile deepseek
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "codex-reviewer": {
+      "type": "local",
+      "command": [
+        "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+        "-m", "reviewer_mcp", "--profile", "codex"
+      ],
+      "enabled": true
+    },
+    "mistral-reviewer": {
+      "type": "local",
+      "command": [
+        "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+        "-m", "reviewer_mcp", "--profile", "mistral"
+      ],
+      "enabled": true
+    },
+    "llama-reviewer": {
+      "type": "local",
+      "command": [
+        "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+        "-m", "reviewer_mcp", "--profile", "llama"
+      ],
+      "enabled": true
+    },
+    "kimi-reviewer": {
+      "type": "local",
+      "command": [
+        "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+        "-m", "reviewer_mcp", "--profile", "kimi"
+      ],
+      "enabled": true
+    },
+    "deepseek-reviewer": {
+      "type": "local",
+      "command": [
+        "/home/pawel/Projects/reviewer-mcp/.venv/bin/python",
+        "-m", "reviewer_mcp", "--profile", "deepseek"
+      ],
+      "enabled": true
+    }
+  }
+}
 ```
+
+Alternatively, run `opencode mcp add` and use the interactive wizard (select **Global** scope, then provide the command and arguments above).
 
 ### Claude Code
 

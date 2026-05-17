@@ -133,7 +133,7 @@ def service_exec_args(config: EnsureConfig) -> list[str]:
 def render_systemd_service(config: EnsureConfig) -> str:
     exec_start = " ".join(json.dumps(arg) for arg in service_exec_args(config))
     environment = service_environment(config)
-    environment_lines = [f"Environment={json.dumps(f'{key}={value}')}" for key, value in environment.items()]
+    environment_lines = [f"Environment={key}={value}" for key, value in environment.items()]
     lines = [
         "[Unit]",
         "Description=Mirror OpenCode sessions into reviewer-mcp brain logs",
@@ -141,7 +141,7 @@ def render_systemd_service(config: EnsureConfig) -> str:
         "",
         "[Service]",
         "Type=simple",
-        f"WorkingDirectory={json.dumps(str(config.project_root))}",
+        f"WorkingDirectory={config.project_root}",
         *environment_lines,
         f"ExecStart={exec_start}",
         "Restart=always",
@@ -460,7 +460,7 @@ def render_brain_sync_service(config: EnsureConfig) -> str:
         "",
         "[Service]",
         "Type=simple",
-        f"WorkingDirectory={json.dumps(str(config.project_root))}",
+        f"WorkingDirectory={config.project_root}",
         f"ExecStart={exec_start}",
         "Restart=always",
         "RestartSec=30",

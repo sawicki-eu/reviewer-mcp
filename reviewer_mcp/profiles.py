@@ -74,6 +74,19 @@ PROFILES: dict[str, ReviewerProfile] = {
             "Fireworks-backed Moonshot Kimi reviewer suited for coding-heavy plans and diffs."
         ),
     ),
+    "deepseek": ReviewerProfile(
+        key="deepseek",
+        server_name="deepseek-reviewer",
+        provider_name="Fireworks AI API",
+        api_url="https://api.fireworks.ai/inference/v1/chat/completions",
+        auth_mode="fireworks",
+        default_model="accounts/fireworks/models/deepseek-v4-pro",
+        token_parameter="max_tokens",
+        default_max_tokens=4000,
+        description=(
+            "Fireworks-backed DeepSeek-V4-Pro reviewer suited for coding-heavy plans and diffs."
+        ),
+    ),
 }
 
 

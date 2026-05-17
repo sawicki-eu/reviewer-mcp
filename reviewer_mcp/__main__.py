@@ -29,7 +29,7 @@ def _legacy_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--profile",
         default=None,
-        help="Reviewer profile to run: codex, mistral, llama, kimi",
+        help="Reviewer profile to run: codex, mistral, llama, kimi, deepseek",
     )
     return parser
 

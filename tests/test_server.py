@@ -24,6 +24,12 @@ class ServerFactoryTest(unittest.TestCase):
         self.assertIn("Moonshot Kimi", mcp.instructions)
         self.assertIn("Fireworks AI API", mcp.instructions)
 
+    def test_deepseek_server_metadata(self) -> None:
+        mcp = create_mcp(get_profile("deepseek"))
+        self.assertEqual(mcp.name, "deepseek-reviewer")
+        self.assertIn("DeepSeek-V4-Pro", mcp.instructions)
+        self.assertIn("Fireworks AI API", mcp.instructions)
+
 
 if __name__ == "__main__":
     unittest.main()

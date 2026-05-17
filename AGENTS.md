@@ -17,6 +17,7 @@ python3 -m venv .venv
 .venv/bin/python -m reviewer_mcp --check --profile mistral
 .venv/bin/python -m reviewer_mcp --check --profile llama
 .venv/bin/python -m reviewer_mcp --check --profile kimi
+.venv/bin/python -m reviewer_mcp --check --profile deepseek
 
 # Run server manually (Ctrl-C to stop; normally launched by OpenCode):
 .venv/bin/python -m reviewer_mcp --profile codex
@@ -47,6 +48,9 @@ opencode mcp add --scope user --transport stdio llama-reviewer \
 
 opencode mcp add --scope user --transport stdio kimi-reviewer \
   -- $HOME/Projects/reviewer-mcp/.venv/bin/python -m reviewer_mcp --profile kimi
+
+opencode mcp add --scope user --transport stdio deepseek-reviewer \
+  -- $HOME/Projects/reviewer-mcp/.venv/bin/python -m reviewer_mcp --profile deepseek
 ```
 
 (Exact command depends on your MCP client — see Integration below.)
@@ -128,7 +132,7 @@ Force review on demand: user says "review this" at any point.
 
 GitHub-backed profiles reuse `gh auth token`. The token must carry `models:read` scope (fine-grained PAT) or appropriate classic-PAT scope. Override with `GITHUB_TOKEN` for tests or CI.
 
-`kimi` uses `FIREWORKS_API_KEY`, or reads a one-line API key file from `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`). Override the file path with `FIREWORKS_API_KEY_FILE`.
+`kimi` and `deepseek` use `FIREWORKS_API_KEY`, or reads a one-line API key file from `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`). Override the file path with `FIREWORKS_API_KEY_FILE`.
 
 ## Profiles
 
@@ -163,6 +167,14 @@ Server name: `kimi-reviewer`
 Default model: `accounts/fireworks/models/kimi-k2p6`
 
 Use when you want a Fireworks-backed reviewer built on Moonshot Kimi K2.6. This profile uses the generic `max_tokens` parameter on Fireworks' OpenAI-compatible chat endpoint.
+
+### `deepseek`
+
+Server name: `deepseek-reviewer`
+
+Default model: `accounts/fireworks/models/deepseek-v4-pro`
+
+Use when you want a Fireworks-backed reviewer built on DeepSeek-V4-Pro. This profile uses the generic `max_tokens` parameter on Fireworks' OpenAI-compatible chat endpoint. Override the model with `REVIEWER_DEEPSEEK_MODEL` if Fireworks updates the endpoint name.
 
 ## Model overrides
 
@@ -217,12 +229,14 @@ reviewer-mcp/
 | `REVIEWER_MISTRAL_MODEL` | `mistral-ai/mistral-medium-2505` | Override the mistral profile model |
 | `REVIEWER_LLAMA_MODEL` | `meta/llama-4-scout-17b-16e-instruct` | Override the llama profile model |
 | `REVIEWER_KIMI_MODEL` | `accounts/fireworks/models/kimi-k2p6` | Override the Kimi profile model |
+| `REVIEWER_DEEPSEEK_MODEL` | `accounts/fireworks/models/deepseek-v4-pro` | Override the DeepSeek profile model |
 | `REVIEWER_TIMEOUT` | `120` | HTTP timeout in seconds |
 | `REVIEWER_MAX_TOKENS` | per profile | Override output budget for all profiles |
 | `REVIEWER_CODEX_MAX_TOKENS` | `8000` | Override the codex profile token budget |
 | `REVIEWER_MISTRAL_MAX_TOKENS` | `4000` | Override the mistral profile token budget |
 | `REVIEWER_LLAMA_MAX_TOKENS` | `4000` | Override the llama profile token budget |
 | `REVIEWER_KIMI_MAX_TOKENS` | `4000` | Override the Kimi profile token budget |
+| `REVIEWER_DEEPSEEK_MAX_TOKENS` | `4000` | Override the DeepSeek profile token budget |
 | `REVIEWER_BRAIN_ROOT` | auto-detect | Override the workspace `brain/` directory |
 | `REVIEWER_STATE_DIR` | `~/.local/state/reviewer-mcp` | Local cursor/dedupe state for mirroring |
 

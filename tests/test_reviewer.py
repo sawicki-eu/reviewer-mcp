@@ -50,6 +50,19 @@ class ReviewerRequestTest(unittest.TestCase):
         self.assertNotIn("max_completion_tokens", body)
         self.assertEqual(profile.api_url, "https://api.fireworks.ai/inference/v1/chat/completions")
 
+    def test_deepseek_uses_fireworks_url_and_max_tokens(self) -> None:
+        profile = get_profile("deepseek")
+        body = reviewer._build_request_body(
+            system_prompt="sys",
+            user_message="user",
+            model="accounts/fireworks/models/deepseek-v4-pro",
+            profile=profile,
+        )
+        self.assertEqual(body["model"], "accounts/fireworks/models/deepseek-v4-pro")
+        self.assertIn("max_tokens", body)
+        self.assertNotIn("max_completion_tokens", body)
+        self.assertEqual(profile.api_url, "https://api.fireworks.ai/inference/v1/chat/completions")
+
 
 class ReviewerAuthTest(unittest.TestCase):
     def test_github_profile_falls_back_to_gh_cli(self) -> None:
@@ -138,6 +151,49 @@ class ReviewerAuthTest(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(AuthError, "file is empty"):
                     get_token(get_profile("kimi"))
+
+    def test_deepseek_uses_fireworks_api_key(self) -> None:
+        with mock.patch.dict(os.environ, {"FIREWORKS_API_KEY": "fw-token"}, clear=True):
+            token = get_token(get_profile("deepseek"))
+        self.assertEqual(token, "fw-token")
+
+    def test_deepseek_profile_requires_api_key(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing_key_path = Path(temp_dir) / "missing-fireworks-key"
+            with mock.patch.dict(
+                os.environ,
+                {"FIREWORKS_API_KEY_FILE": str(missing_key_path)},
+                clear=True,
+            ):
+                with self.assertRaisesRegex(AuthError, "FIREWORKS_API_KEY"):
+                    get_token(get_profile("deepseek"))
+
+    def test_deepseek_profile_reads_default_xdg_key_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config_dir = Path(temp_dir) / "config"
+            key_path = config_dir / "reviewer-mcp" / "fireworks-api-key"
+            key_path.parent.mkdir(parents=True)
+            key_path.write_text("fw-file-token\n", encoding="utf-8")
+
+            with mock.patch.dict(
+                os.environ,
+                {"XDG_CONFIG_HOME": str(config_dir)},
+                clear=True,
+            ):
+                token = get_token(get_profile("deepseek"))
+
+        self.assertEqual(token, "fw-file-token")
+
+    def test_deepseek_transport_errors_include_provider_name(self) -> None:
+        profile = get_profile("deepseek")
+        with (
+            mock.patch("reviewer_mcp.reviewer.get_token", return_value="fw-token"),
+            mock.patch("httpx.Client") as client_cls,
+        ):
+            client = client_cls.return_value.__enter__.return_value
+            client.post.side_effect = reviewer.httpx.ConnectError("boom")
+            with self.assertRaisesRegex(reviewer.ModelCallError, "Fireworks AI API transport error"):
+                reviewer._call_model({"model": profile.default_model}, profile)
 
 
 class ReviewerParsingTest(unittest.TestCase):

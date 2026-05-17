@@ -8,6 +8,7 @@ Shared prompts and tool schemas are reused across multiple reviewer profiles:
 - `mistral-reviewer` on `mistral-ai/mistral-medium-2505`
 - `llama-reviewer` on `meta/llama-4-scout-17b-16e-instruct`
 - `kimi-reviewer` on `accounts/fireworks/models/kimi-k2p6`
+- `deepseek-reviewer` on `accounts/fireworks/models/deepseek-v4-pro`
 
 Each server exposes the same two tools:
 
@@ -19,7 +20,7 @@ Pick the reviewer whose model family best complements the primary agent, or regi
 Auth:
 
 - GitHub-backed profiles use `GITHUB_TOKEN` or `gh auth token`
-- `kimi-reviewer` uses `FIREWORKS_API_KEY`, or reads `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`)
+- `kimi-reviewer` and `deepseek-reviewer` use `FIREWORKS_API_KEY`, or reads `~/.config/reviewer-mcp/fireworks-api-key` by default (respecting `XDG_CONFIG_HOME`)
 
 Example Fireworks key file setup:
 

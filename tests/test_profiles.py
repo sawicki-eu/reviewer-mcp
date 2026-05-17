@@ -71,6 +71,27 @@ class ProfilesTest(unittest.TestCase):
             model = get_default_model(profile)
         self.assertEqual(model, "accounts/fireworks/models/custom-kimi")
 
+    def test_deepseek_profile_uses_fireworks_provider(self) -> None:
+        profile = get_profile("deepseek")
+        self.assertEqual(profile.server_name, "deepseek-reviewer")
+        self.assertEqual(profile.provider_name, "Fireworks AI API")
+        self.assertEqual(profile.api_url, "https://api.fireworks.ai/inference/v1/chat/completions")
+        self.assertEqual(profile.auth_mode, "fireworks")
+        self.assertEqual(profile.default_model, "accounts/fireworks/models/deepseek-v4-pro")
+
+    def test_deepseek_specific_model_override_beats_generic(self) -> None:
+        profile = get_profile("deepseek")
+        with mock.patch.dict(
+            os.environ,
+            {
+                "REVIEWER_MODEL": "generic/model",
+                "REVIEWER_DEEPSEEK_MODEL": "accounts/fireworks/models/custom-deepseek",
+            },
+            clear=True,
+        ):
+            model = get_default_model(profile)
+        self.assertEqual(model, "accounts/fireworks/models/custom-deepseek")
+
 
 if __name__ == "__main__":
     unittest.main()
